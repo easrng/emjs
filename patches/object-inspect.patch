@@ -1,0 +1,47 @@
+diff --git a/index.js b/index.js
+index 5240a4d865257ca6cf5f4d9257e958b18c6eba3f..c592ba7c8ceaa4f82728fe548e6cac0561c91515 100644
+--- a/index.js
++++ b/index.js
+@@ -65,10 +65,6 @@ function addNumericSeparator(num, str) {
+     return $replace.call(str, sepRegex, '$&_');
+ }
+ 
+-var utilInspect = require('./util.inspect');
+-var inspectCustom = utilInspect.custom;
+-var inspectSymbol = isSymbol(inspectCustom) ? inspectCustom : null;
+-
+ var quotes = {
+     __proto__: null,
+     'double': '"',
+@@ -80,7 +76,7 @@ var quoteREs = {
+     single: /(['\\])/g
+ };
+ 
+-module.exports = function inspect_(obj, options, depth, seen) {
++export default function inspect_(obj, options, depth, seen) {
+     var opts = options || {};
+ 
+     if (has(opts, 'quoteStyle') && !has(quotes, opts.quoteStyle)) {
+@@ -205,9 +201,7 @@ module.exports = function inspect_(obj, options, depth, seen) {
+         return '{ [' + String(obj) + '] ' + $join.call(parts, ', ') + ' }';
+     }
+     if (typeof obj === 'object' && customInspect) {
+-        if (inspectSymbol && typeof obj[inspectSymbol] === 'function' && utilInspect) {
+-            return utilInspect(obj, { depth: maxDepth - depth });
+-        } else if (customInspect !== 'symbol' && typeof obj.inspect === 'function') {
++        if (customInspect !== 'symbol' && typeof obj.inspect === 'function') {
+             return obj.inspect();
+         }
+     }
+diff --git a/package.json b/package.json
+index 22ebbc0349281fe870e9ee3e3ded5f8609621186..17f65318b1b0a0641afe706df6d3af5a0ed0b15d 100644
+--- a/package.json
++++ b/package.json
+@@ -3,6 +3,7 @@
+   "version": "1.13.3",
+   "description": "string representations of objects in node and the browser",
+   "main": "index.js",
++  "type": "module",
+   "sideEffects": false,
+   "devDependencies": {
+     "@ljharb/eslint-config": "^21.1.1",

@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["./src/lib"],
+  "exclude": ["./src/bootstrap"],
+  "compilerOptions": {
+    "noCheck": true,
+    "noEmit": false,
+    "outDir": "./build/lib",
+    "rootDir": "./src/lib",
+    "noEmitOnError": true
+  }
+}
