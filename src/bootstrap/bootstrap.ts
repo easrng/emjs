@@ -1,13 +1,15 @@
 import {
-  undefined,
   Error,
-  globalThis,
+  FunctionPrototypeBind,
+  FunctionPrototypeCall,
   JSONStringify,
-  ObjectDefineProperties,
+  RegExpPrototypeTest,
+  StringPrototypeSlice,
+  StringPrototypeStartsWith,
   type ArrayBuffer,
 } from "./primordials.js";
-import { createEncodingClasses } from "./encoding.js";
-import { createConsole } from "./console.js";
+import primordials from "./primordials.js";
+import primordialUtils, { PromisePrototypeCatch } from "./primordial-utils.js";
 import { SafeSet } from "./primordial-utils.js";
 import { FS, moduleResolve } from "@easrng/import-meta-resolve/lib/resolve.js";
 import {
@@ -15,22 +17,24 @@ import {
   pathToFileURL,
 } from "@easrng/import-meta-resolve/lib/node-url.js";
 import path from "@easrng/import-meta-resolve/lib/node-path.js";
-
+const { resolve: pathResolve } = path;
 export type Internals = {
-  /** Prints to stdout */
-  print(str: string): void;
+  /** Writes string to fd as utf-8 */
+  js_write_str(fd: number, str: string): void;
   /** Executes microtasks */
   execute_pending_job(): boolean;
   /** Module loader */
   loader_load(url: string): string;
   /** Module resolver */
   loader_resolve(specifier: string, base: string): string;
+  /** Set up import.meta */
+  loader_init(url: string, importMeta: ImportMeta): void;
   /** UTF8 bytes to string */
   decode_utf8(
     buffer: ArrayBuffer,
     offset: number,
-    fatal: boolean,
-    ignoreBOM: boolean
+    length: number,
+    fatal: boolean
   ): string;
   /** UTF8 bytes from string */
   encode_utf8(str: string): ArrayBuffer;
@@ -39,23 +43,79 @@ export type Internals = {
   getcwd(): string | undefined;
   getmode(str: string): number | undefined;
   argv: string[];
+  URL: typeof import("../lib/internal/url.js").URL | undefined;
 };
 
 export default function bootstrap(internals: Internals) {
-  const { execute_pending_job, realpath, getcwd, readtextfile, getmode } =
-    internals;
-  const console = createConsole(internals);
+  const {
+    execute_pending_job,
+    realpath,
+    getcwd,
+    readtextfile,
+    getmode,
+    js_write_str,
+  } = internals;
+
+  function importMetaResolve(
+    this: InstanceType<NonNullable<typeof internals.URL>> | undefined,
+    specifier: string
+  ) {
+    try {
+      return moduleResolve(specifier, this, fs, conditions).href;
+    } catch (e) {
+      if (e instanceof Error && "code" in e) throw e;
+      throw new Error(
+        `Failed to resolve module specifier ${JSONStringify(specifier)}${
+          this ? ` from ${JSONStringify(this.href)}` : ""
+        }`
+      );
+    }
+  }
+
   internals.loader_load = function loader_load(name) {
     const cwd = getcwd();
     if (!cwd) throw new Error("failed to get cwd");
-    const text = readtextfile(
-      name.startsWith("emjs:")
-        ? path.resolve(cwd, "dist/lib", name.slice(5))
-        : fileURLToPath(name)
-    );
+    let json = false;
+    if (StringPrototypeStartsWith(name, "json:")) {
+      name = StringPrototypeSlice(name, 5);
+      json = true;
+    }
+    let hax;
+    try {
+      hax = StringPrototypeStartsWith(name, "emjs:")
+        ? pathResolve(
+            cwd,
+            "build/lib",
+            StringPrototypeSlice(name, 5) + (json ? ".json" : ".js")
+          )
+        : fileURLToPath(name);
+    } catch (e) {
+      throw new Error(`failed to read module ${JSONStringify(name)}: ${e}`);
+    }
+    const text = readtextfile(hax);
     if (!text)
       throw new Error("module at " + JSONStringify(name) + " not found");
     return text;
+  };
+  internals.loader_init = function loader_init(url, importMeta) {
+    importMeta.url = url;
+    if (!StringPrototypeStartsWith(url, "emjs:")) {
+      if (!internals.URL) {
+        throw new Error(
+          "may not import external modules until after setting up URL"
+        );
+      }
+      importMeta.resolve = FunctionPrototypeBind(
+        importMetaResolve,
+        new internals.URL(url)
+      );
+    }
+    if (url === "emjs:internal/internals") {
+      const injectInternals = importMeta as unknown as Record<string, unknown>;
+      injectInternals["internals"] = internals;
+      injectInternals["primordials"] = primordials;
+      injectInternals["primordialUtils"] = primordialUtils;
+    }
   };
   const conditions = new SafeSet(["import", "emjs"]);
   const fs: FS = {
@@ -82,78 +142,48 @@ export default function bootstrap(internals: Internals) {
     },
   };
   internals.loader_resolve = function loader_resolve(specifier, base): string {
-    const fromInternal = base.startsWith("emjs:internal/");
-    let baseURL: InstanceType<typeof URL>;
-    if (specifier.startsWith("emjs:")) {
-      const url = new URL(specifier);
-      if (!fromInternal && url.pathname.startsWith("internal/")) {
+    const fromInternal = StringPrototypeStartsWith(base, "emjs:");
+    if (!internals.URL) {
+      if (!fromInternal) {
+        throw new Error("this should never happen");
+      }
+      if (RegExpPrototypeTest(/^emjs:[/a-z0-9_-]+$/, specifier)) {
+        return specifier === "emjs:internal/url/tr46-mapping-table"
+          ? "json:" + specifier
+          : specifier;
+      }
+      throw new Error(
+        `failed to resolve ${JSONStringify(
+          specifier
+        )}, only canonical emjs specifiers may be imported during bootstrap`
+      );
+    }
+    let baseURL: InstanceType<NonNullable<typeof internals.URL>> | undefined;
+    if (StringPrototypeStartsWith(specifier, "emjs:")) {
+      const url = new internals.URL(specifier);
+      if (
+        !fromInternal &&
+        StringPrototypeStartsWith(url.pathname, "internal/")
+      ) {
         throw new Error("External modules may not import emjs internals.");
       }
       return "emjs:" + url.pathname;
     }
-    if (fromInternal || base === "<input>") {
+    if (base === "<input>" || fromInternal) {
       const cwd = getcwd();
       if (!cwd) throw new Error("failed to get cwd");
-      baseURL = pathToFileURL(cwd + "/.dummy");
+      baseURL = pathToFileURL(cwd + "/.emjs-eval");
     } else {
-      baseURL = new URL(base);
+      baseURL = new internals.URL!(base);
     }
-    const resolved = moduleResolve(specifier, baseURL, fs, conditions).href;
-    return resolved;
+    return FunctionPrototypeCall(importMetaResolve, baseURL, specifier);
   };
-  const { TextEncoder, TextDecoder } = createEncodingClasses(internals);
-  ObjectDefineProperties(globalThis, {
-    console: {
-      __proto__: null,
-      configurable: true,
-      enumerable: false,
-      writable: true,
-      value: console,
-    },
-    TextEncoder: {
-      __proto__: null,
-      configurable: true,
-      enumerable: false,
-      writable: true,
-      value: TextEncoder,
-    },
-    TextDecoder: {
-      __proto__: null,
-      configurable: true,
-      enumerable: false,
-      writable: true,
-      value: TextDecoder,
-    },
+  PromisePrototypeCatch(import(["emjs:internal/init"][0]!), (e) => {
+    js_write_str(
+      2,
+      e instanceof Error ? e.message + "\n" + e.stack + "\n" : e + "\n"
+    );
   });
-  const { URL, URLSearchParams } =
-    // @ts-expect-error using require in es module
-    // eslint-disable-next-line no-restricted-globals, @typescript-eslint/no-require-imports
-    require("whatwg-url") as typeof import("whatwg-url");
-  ObjectDefineProperties(globalThis, {
-    URL: {
-      __proto__: null,
-      configurable: true,
-      enumerable: false,
-      writable: true,
-      value: URL,
-    },
-    URLSearchParams: {
-      __proto__: null,
-      configurable: true,
-      enumerable: false,
-      writable: true,
-      value: URLSearchParams,
-    },
-  });
-
-  import(["emjs:internal/init"][0]!).then(
-    (o) => {
-      console.log("imported", o);
-    },
-    (e) => {
-      console.error(e.message + "\n" + e.stack);
-    }
-  );
   // run microtasks
   while (execute_pending_job());
 }

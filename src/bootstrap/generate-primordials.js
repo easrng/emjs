@@ -1,6 +1,8 @@
 /* eslint-disable no-restricted-globals */
 /* global console */
 
+/** @typedef {string | {type?: boolean; as?: string; name: string}} Export */
+
 // Methods that accept a variable number of arguments, and thus it's useful to
 // also create `${prefix}${key}Apply`, which uses `Function.prototype.apply`,
 // instead of `Function.prototype.call`, and thus doesn't require iterator
@@ -55,10 +57,7 @@ const define = (
   /** @type {string} */ name,
   /** @type {string} */ val,
   /** @type {string | undefined} */ t
-) =>
-  `const ${name}${t ? ": " + t : ""} = /* @__PURE__ */ (()${
-    t ? ": " + t : ""
-  } => /*val*/${val})();`;
+) => `const ${name}${t ? ": " + t : ""} = ${val};`;
 
 /**
  * Creates a new object that contains properties and methods from a source
@@ -77,7 +76,7 @@ const define = (
  * @param {string[]} dest - The destination object where properties will be
  *        copied. If not provided, a new object will be created.
  *
- * @param {string[]} exports
+ * @param {Export[]} exports
  *
  * @returns {void} The destination object containing the copied properties
  *                  from the source.
@@ -182,7 +181,7 @@ function getPrimordial(src, name, path, dest, exports) {
   };
 
   dest.push(define(`$${name}`, path));
-  exports.push(`$${name} as ${name}`);
+  exports.push({ name: `$${name}`, as: name });
 
   // Handle non-function, non-object sources
   if (
@@ -202,23 +201,27 @@ function getPrimordial(src, name, path, dest, exports) {
 }
 
 /**
- * @type {string[]}
+ * @type {Export[]}
  */
 const exports = [
   "uncurryThis",
-  "type $Iterator as Iterator",
-  "ReflectGetOwnPropertyDescriptor",
-  "$undefined as undefined",
+  {
+    type: true,
+    name: "$Iterator",
+    as: "Iterator",
+  },
+  "ReflectGetOwnPropertyDescriptor"
 ];
 
 /**
  * @type {string[]}
  */
 const primordials = [
-  String.raw`type ToObject<T extends object> = {
+  String.raw`// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-nocheck
+type ToObject<T extends object> = {
   [K in keyof T]: T[K];
 };
-// @ts-expect-error hax
 interface AddSignature<
   T extends object,
   Params extends readonly unknown[],
@@ -293,8 +296,11 @@ type $WeakSet<T extends WeakKey> = WeakSet<T>;
 type $Promise<T> = Promise<T>;
 type $ArrayBuffer = ArrayBuffer;
 const ReflectGetOwnPropertyDescriptor = Reflect.getOwnPropertyDescriptor;
-type $undefined = typeof undefined;
-const $undefined = undefined;`,
+// eslint-disable-next-line @typescript-eslint/no-wrapper-object-types
+type $Symbol = Symbol;
+// eslint-disable-next-line @typescript-eslint/no-wrapper-object-types
+type $BigInt = BigInt;
+`,
 ];
 
 getPrimordial(Symbol, "Symbol", "Symbol", primordials, exports);
@@ -358,7 +364,23 @@ for (const name of [
   );
 }
 
-primordials.push(`\nexport { ${exports.join(", ")} }`);
+primordials.push(
+  `\nexport {\n${exports
+    .map((e) =>
+      typeof e === "string"
+        ? e
+        : `${e.type ? "type " : ""}${e.name}${e.as ? " as " + e.as : ""}`
+    )
+    .join(",\n")}\n}\nexport default {\n${exports
+    .flatMap((e) =>
+      typeof e === "string"
+        ? e
+        : e.type
+        ? []
+        : `${e.as ? e.as + ": " : ""}${e.name}`
+    )
+    .join(",\n")}\n}`
+);
 
 for (const line of primordials) {
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment

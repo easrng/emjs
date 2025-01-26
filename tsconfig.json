@@ -3,7 +3,7 @@
   "compilerOptions": {
     "target": "ESNext",
     "lib": ["ESNext"],
-    "types": [],
+    "types": ["./src/globals"],
     "module": "NodeNext",
     "moduleResolution": "nodenext",
     "strict": true,
@@ -25,13 +25,16 @@
     "checkJs": true,
 
     "esModuleInterop": true,
-    "skipLibCheck": true,
+    "skipLibCheck": false,
     "noEmit": true,
 
     "noErrorTruncation": true,
 
     "paths": {
-      "emjs:*": ["./src/lib/*.ts"]
+      "emjs:*": ["./src/lib/*.ts", "./src/lib/*.json"]
     }
+  },
+  "typeAcquisition": {
+    "enable": false
   }
 }

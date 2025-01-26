@@ -24,7 +24,6 @@ import {
   PromisePrototypeThen,
   ObjectPrototypeIsPrototypeOf,
   PromisePrototype,
-  undefined,
   Uint8Array,
   type Array,
   type Iterator,
@@ -52,7 +51,7 @@ const createSafeIterator = <F>(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   next: (_: F) => IteratorResult<any, undefined>
 ): {
-  new<T>(iterable: Iterable<T>): IterableIterator<T>
+  new <T>(iterable: Iterable<T>): IterableIterator<T>;
 } => {
   class SafeIterator<T> implements IterableIterator<T> {
     #iterator: F;
@@ -76,6 +75,27 @@ export const ArrayIteratorPrototype = ReflectGetPrototypeOf(
   ArrayPrototype[SymbolIterator]()
 )! as {
   [SymbolToStringTag]: "Array Iterator";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  next: Iterator<any, any>["next"];
+};
+export const SetIteratorPrototype = ReflectGetPrototypeOf(
+  SetPrototypeSymbolIterator(new Set())
+)! as {
+  [SymbolToStringTag]: "Set Iterator";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  next: Iterator<any, any>["next"];
+};
+export const MapIteratorPrototype = ReflectGetPrototypeOf(
+  MapPrototypeSymbolIterator(new Map())
+)! as {
+  [SymbolToStringTag]: "Map Iterator";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  next: Iterator<any, any>["next"];
+};
+export const StringIteratorPrototype = ReflectGetPrototypeOf(
+  StringPrototypeSymbolIterator("")
+)! as {
+  [SymbolToStringTag]: "String Iterator";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   next: Iterator<any, any>["next"];
 };
@@ -103,6 +123,9 @@ export const ArrayPrototypeMap = uncurryThis(ArrayPrototype.map) as <T, U>(
 ) => U[];
 
 const ArrayIteratorPrototypeNext = uncurryThis(ArrayIteratorPrototype.next);
+const SetIteratorPrototypeNext = uncurryThis(SetIteratorPrototype.next);
+const MapIteratorPrototypeNext = uncurryThis(MapIteratorPrototype.next);
+const StringIteratorPrototypeNext = uncurryThis(StringIteratorPrototype.next);
 
 export const SafeArrayIterator = createSafeIterator(
   ArrayPrototypeSymbolIterator,
@@ -110,15 +133,15 @@ export const SafeArrayIterator = createSafeIterator(
 );
 export const SafeSetIterator = createSafeIterator(
   SetPrototypeSymbolIterator,
-  ArrayIteratorPrototypeNext
+  SetIteratorPrototypeNext
 );
 export const SafeMapIterator = createSafeIterator(
   MapPrototypeSymbolIterator,
-  ArrayIteratorPrototypeNext
+  MapIteratorPrototypeNext
 );
 export const SafeStringIterator = createSafeIterator(
   StringPrototypeSymbolIterator,
-  ArrayIteratorPrototypeNext
+  StringIteratorPrototypeNext
 );
 
 const copyProps = (src: object, dest: object) => {
@@ -177,7 +200,7 @@ const makeSafe = <T extends Constructor>(unsafe: Constructor, safe: T): T => {
 export const SafeMap = makeSafe(
   Map,
   class SafeMap<K, V> extends Map<K, V> {
-    constructor(i?:  [K, V][]) {
+    constructor(i?: [K, V][]) {
       if (i == null) {
         super();
         return;
@@ -398,3 +421,35 @@ export function isDataView(value: unknown) {
     return false;
   }
 }
+
+export default {
+  ArrayIteratorPrototype,
+  ArrayPrototypeMap,
+  ArrayPrototypeToString,
+  isArrayBufferDetached,
+  isDataView,
+  isNonSharedArrayBuffer,
+  isSharedArrayBuffer,
+  isTypedArray,
+  MapIteratorPrototype,
+  PromisePrototypeCatch,
+  SafeArrayIterator,
+  SafeMap,
+  SafeMapIterator,
+  SafePromiseAll,
+  SafePromisePrototypeFinally,
+  SafeRegExp,
+  SafeSet,
+  SafeSetIterator,
+  SafeStringIterator,
+  SafeWeakMap,
+  SafeWeakSet,
+  SetIteratorPrototype,
+  StringIteratorPrototype,
+  TypedArrayPrototype,
+  TypedArrayPrototypeGetBuffer,
+  TypedArrayPrototypeGetByteLength,
+  TypedArrayPrototypeGetByteOffset,
+  TypedArrayPrototypeGetSymbolToStringTag,
+  TypedArrayPrototypeSubarray,
+} satisfies Omit<typeof import("./primordial-utils.js"), "default">;

@@ -1,0 +1,31 @@
+3993,3994c3993,3995
+< /* cesu8 determines if non-BMP1 codepoints are encoded as 1 or 2 utf-8 sequences */
+< const char *JS_ToCStringLen2(JSContext *ctx, size_t *plen, JSValueConst val1, BOOL cesu8)
+---
+> /* flags & 1 determines if non-BMP1 codepoints are encoded as 1 or 2 utf-8 sequences */
+> /* flags & 2 determines if unpaired surrogates are encoded as-is or replaced with 0xfffd */
+> const char *JS_ToCStringLen2(JSContext *ctx, size_t *plen, JSValueConst val1, int flags)
+3995a3997,3998
+>     BOOL cesu8 = flags & 1;
+>     BOOL wellformed = flags & 2;
+4064,4066c4067,4068
+<                         } else {
+<                             /* Keep unmatched surrogate code points */
+<                             /* c = 0xfffd; */ /* error */
+---
+>                         } else if (wellformed) {
+>                             c = 0xfffd; /* error */
+4068,4070c4070,4071
+<                     } else {
+<                         /* Keep unmatched surrogate code points */
+<                         /* c = 0xfffd; */ /* error */
+---
+>                     } else if (wellformed) {
+>                         c = 0xfffd; /* error */
+4071a4073,4074
+>                 } else if (is_lo_surrogate(c)) {
+>                     c = 0xfffd; /* error */
+43532c43535
+<     str = JS_ToCStringLen2(ctx, &len, pattern, !(re_flags & LRE_FLAG_UNICODE));
+---
+>     str = JS_ToCStringLen2(ctx, &len, pattern, (re_flags & LRE_FLAG_UNICODE) && 1);

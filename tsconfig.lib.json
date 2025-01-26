@@ -3,10 +3,12 @@
   "include": ["./src/lib"],
   "exclude": ["./src/bootstrap"],
   "compilerOptions": {
-    "noCheck": true,
+    "noResolve": true,
     "noEmit": false,
+    "noCheck": true,
     "outDir": "./build/lib",
     "rootDir": "./src/lib",
-    "noEmitOnError": true
+    "noEmitOnError": true,
+    "noErrorTruncation": true
   }
 }

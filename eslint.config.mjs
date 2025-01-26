@@ -5,6 +5,8 @@ import pluginJs from "@eslint/js";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
+const blockedGlobals = new Set(Object.values(globals).flatMap(Object.keys));
+blockedGlobals.delete("undefined");
 /** @type {import('eslint').Linter.Config[]} */
 export default [
   { ignores: ["quickjs/", "build/"] },
@@ -13,10 +15,7 @@ export default [
   ...tseslint.configs.recommended,
   {
     rules: {
-      "no-restricted-globals": [
-        "error",
-        ...new Set(Object.values(globals).flatMap(Object.keys)),
-      ],
+      "no-restricted-globals": ["error", ...blockedGlobals],
       "@typescript-eslint/no-unused-vars": "off",
     },
   },

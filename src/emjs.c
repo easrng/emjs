@@ -8,27 +8,29 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 #define countof(x) (sizeof(x) / sizeof((x)[0]))
 
-static JSValue js_print(JSContext *ctx, JSValue this_val, int argc,
-                        JSValue *argv) {
-  if (argc != 1)
+static JSValue js_write_str(JSContext *ctx, JSValue this_val, int argc,
+                            JSValue *argv) {
+  if (argc != 2)
+    return JS_EXCEPTION;
+  uint32_t fd;
+  if (JS_ToUint32(ctx, &fd, argv[0]) < 0)
     return JS_EXCEPTION;
   size_t len;
-  const char *str = JS_ToCStringLen(ctx, &len, argv[0]);
-  fwrite(str, 1, len, stdout);
-  fputc('\n', stdout);
-  fflush(stdout);
+  const char *str = JS_ToCStringLen(ctx, &len, argv[1]);
+  ssize_t written = write(fd, str, len);
   JS_FreeCString(ctx, str);
-  return JS_UNDEFINED;
+  return JS_NewInt32(ctx, written);
 }
 static JSValue js_encode_utf8(JSContext *ctx, JSValue this_val, int argc,
                               JSValue *argv) {
   if (argc != 1)
     return JS_EXCEPTION;
   size_t len;
-  const char *str = JS_ToCStringLen(ctx, &len, argv[0]);
+  const char *str = JS_ToCStringLen2(ctx, &len, argv[0], 2);
   JSValue ab = JS_NewArrayBufferCopy(ctx, (uint8_t *)str, len);
   JS_FreeCString(ctx, str);
   return ab;
@@ -51,14 +53,16 @@ static JSValue js_decode_utf8(JSContext *ctx, JSValue this_val, int argc,
     return JS_EXCEPTION;
 
   uint32_t byteOffset;
-  size_t byteLength;
-  uint8_t *str = JS_GetArrayBuffer(ctx, &byteLength, argv[0]);
+  uint32_t byteLength;
+  size_t bufferLength;
   if (JS_ToUint32(ctx, &byteOffset, argv[1]) < 0)
     return JS_EXCEPTION;
-  if (byteOffset > byteLength)
+  if (JS_ToUint32(ctx, &byteLength, argv[2]) < 0)
     return JS_EXCEPTION;
-  return JS_NewStringLen(ctx, (char *)(byteOffset + str),
-                         byteLength - byteOffset);
+  uint8_t *str = JS_GetArrayBuffer(ctx, &bufferLength, argv[0]);
+  if ((byteOffset + byteLength) > bufferLength)
+    return JS_EXCEPTION;
+  return JS_NewStringLen(ctx, (char *)(byteOffset + str), byteLength);
 }
 static JSValue js_realpath(JSContext *ctx, JSValue this_val, int argc,
                            JSValue *argv) {
@@ -130,7 +134,7 @@ static JSValue js_getmode(JSContext *ctx, JSValue this_val, int argc,
   return JS_NewInt32(ctx, stats.st_mode);
 }
 static const JSCFunctionListEntry js_internals_funcs[] = {
-    JS_CFUNC_DEF("print", 1, js_print),
+    JS_CFUNC_DEF("js_write_str", 2, js_write_str),
     JS_CFUNC_DEF("execute_pending_job", 0, js_execute_pending_job),
     JS_CFUNC_DEF("encode_utf8", 1, js_encode_utf8),
     JS_CFUNC_DEF("decode_utf8", 4, js_decode_utf8),
@@ -139,6 +143,8 @@ static const JSCFunctionListEntry js_internals_funcs[] = {
     JS_CFUNC_DEF("readtextfile", 1, js_readtextfile),
     JS_CFUNC_DEF("getmode", 1, js_getmode),
 };
+
+int js_module_noop_init(JSContext *ctx, JSModuleDef *m) { return 0; }
 
 static JSModuleDef *js_module_loader(JSContext *ctx, const char *module_name,
                                      void *opaque) {
@@ -156,11 +162,33 @@ static JSModuleDef *js_module_loader(JSContext *ctx, const char *module_name,
   JSValue result = JS_Call(ctx, loader_load, JS_NULL, 1, &module_name_js);
   JS_FreeValue(ctx, loader_load);
   if (JS_IsException(result)) {
+    JS_FreeValue(ctx, module_name_js);
     return NULL;
   }
 
   buf = JS_ToCStringLen(ctx, &buf_len, result);
   JS_FreeValue(ctx, result);
+
+  if (module_name[0] == 'j' && module_name[1] == 's' && module_name[2] == 'o' &&
+      module_name[3] == 'n' && module_name[4] == ':') {
+    JS_FreeValue(ctx, module_name_js);
+    JSValue parsed = JS_ParseJSON2(ctx, buf, buf_len, module_name, 0);
+    JS_FreeCString(ctx, buf);
+    if (JS_IsException(parsed)) {
+      return NULL;
+    }
+    m = JS_NewCModule(ctx, module_name, js_module_noop_init);
+    JS_AddModuleExport(ctx, m, "default");
+    func_val =
+        JS_EvalFunction(ctx, JS_DupValue(ctx, JS_MKPTR(JS_TAG_MODULE, m)));
+    if (JS_IsException(func_val)) {
+      JS_FreeValue(ctx, parsed);
+      return NULL;
+    }
+    JS_FreeValue(ctx, func_val);
+    JS_SetModuleExport(ctx, m, "default", parsed);
+    return m;
+  }
 
   /* compile the module */
   func_val = JS_Eval(ctx, (char *)buf, buf_len, module_name,
@@ -174,15 +202,13 @@ static JSModuleDef *js_module_loader(JSContext *ctx, const char *module_name,
   m = JS_VALUE_GET_PTR(func_val);
 
   JSValue import_meta = JS_GetImportMeta(ctx, m);
-  JSValue module_ns = JS_GetModuleNamespace(ctx, m);
 
   JSValue loader_init = JS_GetPropertyStr(ctx, internals, "loader_init");
   assert(JS_IsFunction(ctx, loader_init));
-  JSValue argv[3] = {module_name_js, import_meta, module_ns};
-  result = JS_Call(ctx, loader_init, JS_NULL, 3, argv);
+  JSValue argv[2] = {module_name_js, import_meta};
+  result = JS_Call(ctx, loader_init, JS_NULL, 2, argv);
   JS_FreeValue(ctx, module_name_js);
   JS_FreeValue(ctx, import_meta);
-  JS_FreeValue(ctx, module_ns);
   JS_FreeValue(ctx, loader_init);
   if (JS_IsException(result)) {
     JS_FreeValue(ctx, func_val);
@@ -209,6 +235,7 @@ static char *js_module_resolver(JSContext *ctx, const char *module_base_name,
     return NULL;
   }
   const char *buf = JS_ToCString(ctx, result);
+  JS_FreeValue(ctx, result);
   char *cbuf = strdup(buf);
   JS_FreeCString(ctx, buf);
   return cbuf;
@@ -241,6 +268,12 @@ int main(int argc, char **argv) {
   }
   JSValue bootstrap_promise = JS_EvalFunction(ctx, bootstrap_mod);
   if (JS_IsException(bootstrap_promise)) {
+    goto exception;
+  }
+  if (JS_PROMISE_REJECTED == JS_PromiseState(ctx, bootstrap_promise)) {
+    JSValue result = JS_PromiseResult(ctx, bootstrap_promise);
+    JS_FreeValue(ctx, bootstrap_promise);
+    JS_Throw(ctx, result);
     goto exception;
   }
   JS_FreeValue(ctx, bootstrap_promise);
