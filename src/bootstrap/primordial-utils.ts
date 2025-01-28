@@ -72,6 +72,7 @@ const createSafeIterator = <F>(
 };
 
 export const ArrayIteratorPrototype = ReflectGetPrototypeOf(
+  // eslint-disable-next-line no-restricted-syntax
   ArrayPrototype[SymbolIterator]()
 )! as {
   [SymbolToStringTag]: "Array Iterator";
@@ -209,6 +210,7 @@ export const SafeMap = makeSafe(
     }
   }
 );
+export type SafeWeakMap<K extends WeakKey, V> = WeakMap<K, V>;
 export const SafeWeakMap = makeSafe(
   WeakMap,
   class SafeWeakMap extends WeakMap {

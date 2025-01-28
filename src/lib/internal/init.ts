@@ -1,5 +1,5 @@
 import { internals, primordials } from "emjs:internal/internals";
-import { console } from "emjs:console";
+import { safe_console } from "emjs:internal/console";
 import { TextEncoder, TextDecoder } from "emjs:internal/encoding";
 import { URL, URLSearchParams } from "emjs:internal/url";
 import { argv } from "emjs:process";
@@ -13,7 +13,7 @@ ObjectDefineProperties(globalThis, {
     configurable: true,
     enumerable: false,
     writable: true,
-    value: console,
+    value: { ...safe_console },
   },
   TextEncoder: {
     __proto__: null,
@@ -53,7 +53,7 @@ ObjectDefineProperties(globalThis, {
 });
 
 if (argv.length < 2) {
-  console.error("usage: emjs <import_specifier>");
+  safe_console.error("usage: emjs <import_specifier>");
 } else {
   await import(argv[1]!);
 }

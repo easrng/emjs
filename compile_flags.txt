@@ -2,3 +2,4 @@
 -I./quickjs
 -O3
 -g
+-flto

@@ -13,7 +13,14 @@ declare namespace primordials {
   export * from "../../bootstrap/primordials.js";
 }
 // @ts-expect-error duplicate identifier
+// eslint-disable-next-line @typescript-eslint/no-namespace
+declare namespace primordialUtils {
+  // @ts-expect-error this syntax errors but it works
+  export * from "../../bootstrap/primordial-utils.js";
+}
+// @ts-expect-error duplicate identifier
 const primordials = injected.primordials;
 const internals = injected.internals;
+// @ts-expect-error duplicate identifier
 const primordialUtils = injected.primordialUtils;
 export { internals, type Internals, primordials, primordialUtils };

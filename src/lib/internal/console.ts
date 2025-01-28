@@ -18,8 +18,10 @@ const {
   ReflectGetOwnPropertyDescriptor,
   Error,
   String,
+  ObjectFreeze,
+  ObjectSetPrototypeOf,
 } = primordials;
-const { js_write_str } = internals;
+const { write_str } = internals;
 
 function inspectArgs(args: unknown[]) {
   const first = args[0];
@@ -96,91 +98,96 @@ function inspectArgs(args: unknown[]) {
 const log =
   () =>
   (...a: unknown[]) => {
-    js_write_str(1, inspectArgs(a) + "\n");
+    write_str(1, inspectArgs(a) + "\n");
   };
 const logErr =
   () =>
   (...a: unknown[]) => {
-    js_write_str(2, inspectArgs(a) + "\n");
+    write_str(2, inspectArgs(a) + "\n");
   };
 const noop = () => () => {};
 const countMap = new SafeMap();
-const console: Console = {
-  log: log(),
-  assert: (condition: unknown = false, ...args: unknown[]) => {
-    if (condition) {
-      return;
-    }
+const safe_console: Console = ObjectFreeze(
+  ObjectSetPrototypeOf(
+    {
+      log: log(),
+      assert: (condition: unknown = false, ...args: unknown[]) => {
+        if (condition) {
+          return;
+        }
 
-    if (args.length === 0) {
-      console.error("Assertion failed");
-      return;
-    }
+        if (args.length === 0) {
+          safe_console.error("Assertion failed");
+          return;
+        }
 
-    const [first, ...rest] = new SafeArrayIterator(args);
+        const [first, ...rest] = new SafeArrayIterator(args);
 
-    if (typeof first === "string") {
-      console.error(
-        `Assertion failed: ${first}`,
-        ...new SafeArrayIterator(rest)
-      );
-      return;
-    }
+        if (typeof first === "string") {
+          safe_console.error(
+            `Assertion failed: ${first}`,
+            ...new SafeArrayIterator(rest)
+          );
+          return;
+        }
 
-    console.error(`Assertion failed:`, ...new SafeArrayIterator(args));
-  },
-  clear: noop(),
-  count: (label = "default") => {
-    label = String(label);
+        safe_console.error(`Assertion failed:`, ...new SafeArrayIterator(args));
+      },
+      clear: noop(),
+      count: (label = "default") => {
+        label = String(label);
 
-    if (MapPrototypeHas(countMap, label)) {
-      const current = MapPrototypeGet(countMap, label) || 0;
-      MapPrototypeSet(countMap, label, current + 1);
-    } else {
-      MapPrototypeSet(countMap, label, 1);
-    }
+        if (MapPrototypeHas(countMap, label)) {
+          const current = MapPrototypeGet(countMap, label) || 0;
+          MapPrototypeSet(countMap, label, current + 1);
+        } else {
+          MapPrototypeSet(countMap, label, 1);
+        }
 
-    console.info(`${label}: ${MapPrototypeGet(countMap, label)}`);
-  },
-  countReset: (label = "default") => {
-    label = String(label);
+        safe_console.info(`${label}: ${MapPrototypeGet(countMap, label)}`);
+      },
+      countReset: (label = "default") => {
+        label = String(label);
 
-    if (MapPrototypeHas(countMap, label)) {
-      MapPrototypeSet(countMap, label, 0);
-    } else {
-      console.warn(`Count for '${label}' does not exist`);
-    }
-  },
-  debug: log(),
-  error: logErr(),
-  info: log(),
-  table: log(), // todo: table
-  trace: (...args: unknown[]) => {
-    const message = inspectArgs(args);
-    console.error(
-      `Trace: %s\n%s`,
-      message,
-      RegExpPrototypeSymbolReplace(
-        /^.+\n/,
-        ReflectGetOwnPropertyDescriptor(new Error(), "stack")!.value!,
-        ""
-      )
-    );
-  },
-  warn: logErr(),
-  dir: log(),
-  dirxml: log(),
-  group: noop(),
-  groupCollapsed: noop(),
-  groupEnd: noop(),
-  time: noop(), // todo: time
-  timeLog: noop(), // todo: time
-  timeEnd: noop(), // todo: time
-  exception: logErr(),
-  timeStamp: noop(),
-  profile: noop(),
-  profileEnd: noop(),
-  [primordials.SymbolToStringTag]: "console",
-};
+        if (MapPrototypeHas(countMap, label)) {
+          MapPrototypeSet(countMap, label, 0);
+        } else {
+          safe_console.warn(`Count for '${label}' does not exist`);
+        }
+      },
+      debug: log(),
+      error: logErr(),
+      info: log(),
+      table: log(), // todo: table
+      trace: (...args: unknown[]) => {
+        const message = inspectArgs(args);
+        safe_console.error(
+          `Trace: %s\n%s`,
+          message,
+          RegExpPrototypeSymbolReplace(
+            /^.+\n/,
+            ReflectGetOwnPropertyDescriptor(new Error(), "stack")!.value!,
+            ""
+          )
+        );
+      },
+      warn: logErr(),
+      dir: log(),
+      dirxml: log(),
+      group: noop(),
+      groupCollapsed: noop(),
+      groupEnd: noop(),
+      time: noop(), // todo: time
+      timeLog: noop(), // todo: time
+      timeEnd: noop(), // todo: time
+      exception: logErr(),
+      timeStamp: noop(),
+      profile: noop(),
+      profileEnd: noop(),
+      [primordials.SymbolToStringTag]: "console",
+    },
+    null
+  )
+);
 
-export { console };
+export { safe_console };

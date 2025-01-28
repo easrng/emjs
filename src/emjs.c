@@ -1,5 +1,7 @@
 #define _XOPEN_SOURCE 500
+#include "cutils.h"
 #include "bootstrap.h"
+#include "lib.h"
 #include "quickjs.h"
 #include <assert.h>
 #include <stddef.h>
@@ -134,7 +136,7 @@ static JSValue js_getmode(JSContext *ctx, JSValue this_val, int argc,
   return JS_NewInt32(ctx, stats.st_mode);
 }
 static const JSCFunctionListEntry js_internals_funcs[] = {
-    JS_CFUNC_DEF("js_write_str", 2, js_write_str),
+    JS_CFUNC_DEF("write_str", 2, js_write_str),
     JS_CFUNC_DEF("execute_pending_job", 0, js_execute_pending_job),
     JS_CFUNC_DEF("encode_utf8", 1, js_encode_utf8),
     JS_CFUNC_DEF("decode_utf8", 4, js_decode_utf8),
@@ -153,27 +155,33 @@ static JSModuleDef *js_module_loader(JSContext *ctx, const char *module_name,
 
   size_t buf_len;
   const char *buf;
+  BOOL free_buf = 0;
   JSValue func_val;
+  JSValue result;
 
-  JSValue module_name_js = JS_NewString(ctx, module_name);
+  size_t module_name_len = strlen(module_name);
+  JSValue module_name_js = JS_NewStringLen(ctx, module_name, module_name_len);
 
-  JSValue loader_load = JS_GetPropertyStr(ctx, internals, "loader_load");
-  assert(JS_IsFunction(ctx, loader_load));
-  JSValue result = JS_Call(ctx, loader_load, JS_NULL, 1, &module_name_js);
-  JS_FreeValue(ctx, loader_load);
-  if (JS_IsException(result)) {
-    JS_FreeValue(ctx, module_name_js);
-    return NULL;
+  if ((buf = lib_load(module_name_len, module_name, &buf_len)) == NULL) {
+    free_buf = 1;
+    JSValue loader_load = JS_GetPropertyStr(ctx, internals, "loader_load");
+    assert(JS_IsFunction(ctx, loader_load));
+    result = JS_Call(ctx, loader_load, JS_NULL, 1, &module_name_js);
+    JS_FreeValue(ctx, loader_load);
+    if (JS_IsException(result)) {
+      JS_FreeValue(ctx, module_name_js);
+      return NULL;
+    }
+    buf = JS_ToCStringLen(ctx, &buf_len, result);
+    JS_FreeValue(ctx, result);
   }
-
-  buf = JS_ToCStringLen(ctx, &buf_len, result);
-  JS_FreeValue(ctx, result);
 
   if (module_name[0] == 'j' && module_name[1] == 's' && module_name[2] == 'o' &&
       module_name[3] == 'n' && module_name[4] == ':') {
     JS_FreeValue(ctx, module_name_js);
     JSValue parsed = JS_ParseJSON2(ctx, buf, buf_len, module_name, 0);
-    JS_FreeCString(ctx, buf);
+    if (free_buf)
+      JS_FreeCString(ctx, buf);
     if (JS_IsException(parsed)) {
       return NULL;
     }
@@ -193,7 +201,8 @@ static JSModuleDef *js_module_loader(JSContext *ctx, const char *module_name,
   /* compile the module */
   func_val = JS_Eval(ctx, (char *)buf, buf_len, module_name,
                      JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
-  JS_FreeCString(ctx, buf);
+  if (free_buf)
+    JS_FreeCString(ctx, buf);
   if (JS_IsException(func_val)) {
     JS_FreeValue(ctx, module_name_js);
     return NULL;

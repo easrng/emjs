@@ -1,6 +1,6 @@
 // Copyright 2018-2025 the Deno authors. MIT license.
 import {
-  internals,
+  internals as safe_internals,
   primordials,
   primordialUtils,
 } from "emjs:internal/internals";
@@ -17,7 +17,7 @@ const {
 const { isTypedArray, TypedArrayPrototypeGetBuffer, isDataView, SafeSet } =
   primordialUtils;
 
-import * as webidl from "emjs:internal/webidl";
+import * as safe_webidl from "emjs:internal/webidl";
 
 const Utf8Labels = new SafeSet([
   "unicode-1-1-utf-8",
@@ -47,8 +47,12 @@ class TextDecoder {
     rawOptions: unknown = { __proto__: null }
   ) {
     const prefix = "Failed to construct 'TextDecoder'";
-    const label = webidl.converters.DOMString(rawLabel, prefix, "Argument 1");
-    const options = webidl.converters["TextDecoderOptions"](
+    const label = safe_webidl.converters.DOMString(
+      rawLabel,
+      prefix,
+      "Argument 1"
+    );
+    const options = safe_webidl.converters["TextDecoderOptions"](
       rawOptions,
       prefix,
       "Argument 2"
@@ -63,7 +67,7 @@ class TextDecoder {
         )
       )
     ) {
-      throw webidl.makeException(
+      throw safe_webidl.makeException(
         RangeError,
         "TextDecoder constructor",
         `The given encoding '${label}' is not supported.`
@@ -71,33 +75,33 @@ class TextDecoder {
     }
     this.#fatal = options.fatal;
     this.#ignoreBOM = options.ignoreBOM;
-    webidl.brandInstance(this);
+    safe_webidl.brandInstance(this);
   }
 
   get encoding(): string {
-    webidl.assertBranded(this, TextDecoderPrototype);
+    safe_webidl.assertBranded(this, TextDecoderPrototype);
     return "utf-8";
   }
 
   get fatal(): boolean {
-    webidl.assertBranded(this, TextDecoderPrototype);
+    safe_webidl.assertBranded(this, TextDecoderPrototype);
     return this.#fatal;
   }
 
   get ignoreBOM(): boolean {
-    webidl.assertBranded(this, TextDecoderPrototype);
+    safe_webidl.assertBranded(this, TextDecoderPrototype);
     return this.#ignoreBOM;
   }
 
   decode(rawInput: unknown): string {
-    webidl.assertBranded(this, TextDecoderPrototype);
+    safe_webidl.assertBranded(this, TextDecoderPrototype);
     const prefix = "Failed to execute 'decode' on 'TextDecoder'";
 
     if (rawInput == null) {
       return "";
     }
 
-    const input = webidl.converters.BufferSource(
+    const input = safe_webidl.converters.BufferSource(
       rawInput,
       prefix,
       "Argument 1",
@@ -127,48 +131,48 @@ class TextDecoder {
     }
 
     try {
-      return internals.decode_utf8(buffer, offset, length, this.#fatal);
+      return safe_internals.decode_utf8(buffer, offset, length, this.#fatal);
     } catch {
       throw new Error("native decode error");
     }
   }
 }
 
-webidl.configureInterface(TextDecoder);
+safe_webidl.configureInterface(TextDecoder);
 const TextDecoderPrototype = TextDecoder.prototype;
 
 class TextEncoder {
   constructor() {
-    webidl.brandInstance(this);
+    safe_webidl.brandInstance(this);
   }
 
   get encoding(): string {
-    webidl.assertBranded(this, TextEncoderPrototype);
+    safe_webidl.assertBranded(this, TextEncoderPrototype);
     return "utf-8";
   }
 
   encode(input = ""): primordials.Uint8Array {
-    webidl.assertBranded(this, TextEncoderPrototype);
+    safe_webidl.assertBranded(this, TextEncoderPrototype);
     // The WebIDL type of `input` is `USVString`, but `core.encode` already
     // converts lone surrogates to the replacement character.
-    input = webidl.converters.DOMString(
+    input = safe_webidl.converters.DOMString(
       input,
       "Failed to execute 'encode' on 'TextEncoder'",
       "Argument 1"
     );
-    return new Uint8Array(internals.encode_utf8(input));
+    return new Uint8Array(safe_internals.encode_utf8(input));
   }
 
   encodeInto(
     source: string,
     destination: primordials.Uint8Array
   ): TextEncoderEncodeIntoResult {
-    webidl.assertBranded(this, TextEncoderPrototype);
+    safe_webidl.assertBranded(this, TextEncoderPrototype);
     const prefix = "Failed to execute 'encodeInto' on 'TextEncoder'";
     // The WebIDL type of `source` is `USVString`, but the ops bindings
     // already convert lone surrogates to the replacement character.
-    source = webidl.converters.DOMString(source, prefix, "Argument 1");
-    destination = webidl.converters.Uint8Array(
+    source = safe_webidl.converters.DOMString(source, prefix, "Argument 1");
+    destination = safe_webidl.converters.Uint8Array(
       destination,
       prefix,
       "Argument 2",
@@ -177,7 +181,7 @@ class TextEncoder {
       }
     );
     // @ts-expect-error todo
-    internals.encode_utf8_into(source, destination, encodeIntoBuf);
+    safe_internals.encode_utf8_into(source, destination, encodeIntoBuf);
     return {
       read: encodeIntoBuf[0],
       written: encodeIntoBuf[1],
@@ -192,24 +196,26 @@ const encodeIntoBuf: InstanceType<typeof Uint32Array> & {
   typeof Uint32Array
 > as InstanceType<typeof Uint32Array> & { 0: number; 1: number };
 
-webidl.configureInterface(TextEncoder);
+safe_webidl.configureInterface(TextEncoder);
 const TextEncoderPrototype = TextEncoder.prototype;
 
 /** xxx {
     fatal?: boolean;
     ignoreBOM?: boolean;
 } */
-const TextDecoderOptions = webidl.createDictionaryConverter(
+const TextDecoderOptions = safe_webidl.createDictionaryConverter(
   "TextDecoderOptions",
   [
     {
+      __proto__: null,
       key: "fatal",
-      converter: webidl.converters.boolean,
+      converter: safe_webidl.converters.boolean,
       defaultValue: false,
     },
     {
+      __proto__: null,
       key: "ignoreBOM",
-      converter: webidl.converters.boolean,
+      converter: safe_webidl.converters.boolean,
       defaultValue: false,
     },
   ] as const
@@ -219,16 +225,16 @@ declare module "emjs:internal/webidl" {
     TextDecoderOptions: typeof TextDecoderOptions;
   }
 }
-webidl.converters["TextDecoderOptions"] = TextDecoderOptions;
+safe_webidl.converters["TextDecoderOptions"] = TextDecoderOptions;
 
 export { TextDecoder, TextEncoder };
 
 export function utf8Encode(string: string) {
-  return new Uint8Array(internals.encode_utf8(string));
+  return new Uint8Array(safe_internals.encode_utf8(string));
 }
 
 export function utf8DecodeWithoutBOM(bytes: primordials.Uint8Array) {
-  return internals.decode_utf8(
+  return safe_internals.decode_utf8(
     bytes.buffer as primordials.ArrayBuffer,
     bytes.byteOffset ?? 0,
     bytes.byteLength,

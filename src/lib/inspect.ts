@@ -48,6 +48,9 @@ const {
   ObjectGetOwnPropertySymbols,
   WeakMap,
   WeakSet,
+  ArrayPrototypePush,
+  StringPrototypeCharCodeAt,
+  NumberPrototypeToString,
 } = primordials;
 const { SafeSetIterator } = primordialUtils;
 
@@ -286,14 +289,17 @@ function inspect_(
   if (isMap(obj)) {
     const mapParts: string[] = [];
     MapPrototypeForEach(obj, function (value, key) {
-      mapParts.push(inspect(key, obj, true) + " => " + inspect(value, obj));
+      ArrayPrototypePush(
+        mapParts,
+        inspect(key, obj, true) + " => " + inspect(value, obj)
+      );
     });
     return collectionOf("Map", MapPrototypeGetSize(obj), mapParts, indent);
   }
   if (isSet(obj)) {
     const setParts: string[] = [];
     SetPrototypeForEach(obj, function (value) {
-      setParts.push(inspect(value, obj));
+      ArrayPrototypePush(setParts, inspect(value, obj));
     });
     return collectionOf("Set", SetPrototypeGetSize(obj), setParts, indent);
   }
@@ -445,7 +451,7 @@ function inspectString(str: string, opts: InspectOptions): string {
 }
 
 function lowbyte(c: string) {
-  const n = c.charCodeAt(0);
+  const n = StringPrototypeCharCodeAt(c, 0);
   const x = {
     8: "b",
     9: "t",
@@ -457,7 +463,9 @@ function lowbyte(c: string) {
     return "\\" + x;
   }
   return (
-    "\\x" + (n < 0x10 ? "0" : "") + StringPrototypeToUpperCase(n.toString(16))
+    "\\x" +
+    (n < 0x10 ? "0" : "") +
+    StringPrototypeToUpperCase(NumberPrototypeToString(n, 16))
   );
 }
 
@@ -547,14 +555,17 @@ function arrObjKeys(
       continue;
     }
     if (RegExpPrototypeTest(/[^\w$]/, key)) {
-      xs.push(inspect(key, obj) + ": " + inspect(obj[key], obj));
+      ArrayPrototypePush(xs, inspect(key, obj) + ": " + inspect(obj[key], obj));
     } else {
-      xs.push(key + ": " + inspect(obj[key], obj));
+      ArrayPrototypePush(xs, key + ": " + inspect(obj[key], obj));
     }
   }
   for (let j = 0; j < syms.length; j++) {
     if (ObjectPrototypePropertyIsEnumerable(obj, syms[j]!)) {
-      xs.push("[" + inspect(syms[j]) + "]: " + inspect(obj[syms[j]!], obj));
+      ArrayPrototypePush(
+        xs,
+        "[" + inspect(syms[j]) + "]: " + inspect(obj[syms[j]!], obj)
+      );
     }
   }
   return xs;

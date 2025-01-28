@@ -16,8 +16,16 @@ const {
   ArrayPrototypeIndexOf,
   ArrayPrototypeSlice,
   ArrayPrototypeJoin,
+  RegExpPrototypeTest,
+  ArrayPrototypeConcat,
+  StringPrototypeEndsWith,
+  StringPrototypeIncludes,
+  StringPrototypeNormalize,
+  StringPrototypeSlice,
+  StringPrototypeSplit,
+  StringPrototypeStartsWith,
 } = primordials;
-const { SafeStringIterator } = primordialUtils;
+const { SafeStringIterator, ArrayPrototypeMap } = primordialUtils;
 
 const STATUS_MAPPING = {
   mapped: 1,
@@ -57,7 +65,7 @@ const regexes = {
 };
 
 function containsNonASCII(str: string) {
-  return /[^\x00-\x7F]/u.test(str);
+  return RegExpPrototypeTest(/[^\x00-\x7F]/u, str);
 }
 
 function findStatus(
@@ -80,14 +88,23 @@ function findStatus(
         (target[1] === STATUS_MAPPING.disallowed_STD3_valid ||
           target[1] === STATUS_MAPPING.disallowed_STD3_mapped)
       ) {
-        return [STATUS_MAPPING.disallowed, ...target.slice(2)];
+        return ArrayPrototypeConcat(
+          [STATUS_MAPPING.disallowed],
+          ArrayPrototypeSlice(target, 2)
+        );
       } else if (target[1] === STATUS_MAPPING.disallowed_STD3_valid) {
-        return [STATUS_MAPPING.valid, ...target.slice(2)];
+        return ArrayPrototypeConcat(
+          [STATUS_MAPPING.valid],
+          ArrayPrototypeSlice(target, 2)
+        );
       } else if (target[1] === STATUS_MAPPING.disallowed_STD3_mapped) {
-        return [STATUS_MAPPING.mapped, ...target.slice(2)];
+        return ArrayPrototypeConcat(
+          [STATUS_MAPPING.mapped],
+          ArrayPrototypeSlice(target, 2)
+        );
       }
 
-      return target.slice(1);
+      return ArrayPrototypeSlice(target, 1);
     } else if (min > val) {
       end = mid - 1;
     } else {
@@ -155,7 +172,7 @@ function validateLabel(
   }
 
   // "1. The label must be in Unicode Normalization Form NFC."
-  if (label.normalize("NFC") !== label) {
+  if (StringPrototypeNormalize(label, "NFC") !== label) {
     return false;
   }
 
@@ -171,8 +188,8 @@ function validateLabel(
   if (checkHyphens) {
     if (
       (codePoints[2] === "-" && codePoints[3] === "-") ||
-      label.startsWith("-") ||
-      label.endsWith("-")
+      StringPrototypeStartsWith(label, "-") ||
+      StringPrototypeEndsWith(label, "-")
     ) {
       return false;
     }
@@ -187,12 +204,12 @@ function validateLabel(
   // }
 
   // "5. The label must not contain a U+002E ( . ) FULL STOP."
-  if (label.includes(".")) {
+  if (StringPrototypeIncludes(label, ".")) {
     return false;
   }
 
   // "6. The label must not begin with a combining mark, that is: General_Category=Mark."
-  if (regexes.combiningMarks.test(codePoints[0]!)) {
+  if (RegExpPrototypeTest(regexes.combiningMarks, codePoints[0]!)) {
     return false;
   }
 
@@ -224,7 +241,12 @@ function validateLabel(
       const ch = codePoints[i]!;
       if (ch === "\u200C" || ch === "\u200D") {
         if (i > 0) {
-          if (regexes.combiningClassVirama.test(codePoints[i - 1]!)) {
+          if (
+            RegExpPrototypeTest(
+              regexes.combiningClassVirama,
+              codePoints[i - 1]!
+            )
+          ) {
             continue;
           }
           if (ch === "\u200C") {
@@ -234,7 +256,12 @@ function validateLabel(
               next < 0
                 ? ArrayPrototypeSlice(codePoints, last)
                 : ArrayPrototypeSlice(codePoints, last, next);
-            if (regexes.validZWNJ.test(ArrayPrototypeJoin(test, ""))) {
+            if (
+              RegExpPrototypeTest(
+                regexes.validZWNJ,
+                ArrayPrototypeJoin(test, "")
+              )
+            ) {
               last = i + 1;
               continue;
             }
@@ -251,9 +278,9 @@ function validateLabel(
     let rtl;
 
     // 1
-    if (regexes.bidiS1LTR.test(codePoints[0]!)) {
+    if (RegExpPrototypeTest(regexes.bidiS1LTR, codePoints[0]!)) {
       rtl = false;
-    } else if (regexes.bidiS1RTL.test(codePoints[0]!)) {
+    } else if (RegExpPrototypeTest(regexes.bidiS1RTL, codePoints[0]!)) {
       rtl = true;
     } else {
       return false;
@@ -262,13 +289,17 @@ function validateLabel(
     if (rtl) {
       // 2-4
       if (
-        !regexes.bidiS2.test(label) ||
-        !regexes.bidiS3.test(label) ||
-        (regexes.bidiS4EN.test(label) && regexes.bidiS4AN.test(label))
+        !RegExpPrototypeTest(regexes.bidiS2, label) ||
+        !RegExpPrototypeTest(regexes.bidiS3, label) ||
+        (RegExpPrototypeTest(regexes.bidiS4EN, label) &&
+          RegExpPrototypeTest(regexes.bidiS4AN, label))
       ) {
         return false;
       }
-    } else if (!regexes.bidiS5.test(label) || !regexes.bidiS6.test(label)) {
+    } else if (
+      !RegExpPrototypeTest(regexes.bidiS5, label) ||
+      !RegExpPrototypeTest(regexes.bidiS6, label)
+    ) {
       // 5-6
       return false;
     }
@@ -278,19 +309,20 @@ function validateLabel(
 }
 
 function isBidiDomain(labels: string[]) {
-  const domain = labels
-    .map((label) => {
-      if (label.startsWith("xn--")) {
+  const domain = ArrayPrototypeJoin(
+    ArrayPrototypeMap(labels, (label) => {
+      if (StringPrototypeStartsWith(label, "xn--")) {
         try {
-          return punycodeDecode(label.substring(4));
+          return punycodeDecode(StringPrototypeSlice(label, 4));
         } catch (err) {
           return "";
         }
       }
       return label;
-    })
-    .join(".");
-  return regexes.bidiDomain.test(domain);
+    }),
+    "."
+  );
+  return RegExpPrototypeTest(regexes.bidiDomain, domain);
 }
 
 function processing(domainName: string, options: ConcreteOptions) {
@@ -298,25 +330,26 @@ function processing(domainName: string, options: ConcreteOptions) {
   let string = mapChars(domainName, options);
 
   // 2. Normalize.
-  string = string.normalize("NFC");
+  string = StringPrototypeNormalize(string, "NFC");
 
   // 3. Break.
-  const labels = string.split(".");
+  const labels = StringPrototypeSplit(string, ".");
   const isBidi = isBidiDomain(labels);
 
   // 4. Convert/Validate.
   let error = false;
-  for (const [i, origLabel] of labels.entries()) {
+  for (let i = 0; i < labels.length; i++) {
+    const origLabel = labels[i]!;
     let label = origLabel;
     let transitionalProcessingForThisLabel = options.transitionalProcessing;
-    if (label.startsWith("xn--")) {
+    if (StringPrototypeStartsWith(label, "xn--")) {
       if (containsNonASCII(label)) {
         error = true;
         continue;
       }
 
       try {
-        label = punycodeDecode(label.substring(4));
+        label = punycodeDecode(StringPrototypeSlice(label, 4));
       } catch {
         if (!options.ignoreInvalidPunycode) {
           error = true;
@@ -342,7 +375,7 @@ function processing(domainName: string, options: ConcreteOptions) {
   }
 
   return {
-    string: labels.join("."),
+    string: ArrayPrototypeJoin(labels, "."),
     error,
   };
 }
@@ -375,8 +408,8 @@ export function toASCII(
     transitionalProcessing,
     ignoreInvalidPunycode,
   });
-  let labels = result.string.split(".");
-  labels = labels.map((l) => {
+  let labels = StringPrototypeSplit(result.string, ".");
+  labels = ArrayPrototypeMap(labels, (l) => {
     if (containsNonASCII(l)) {
       try {
         return `xn--${punycodeEncode(l)}`;
@@ -388,7 +421,7 @@ export function toASCII(
   });
 
   if (verifyDNSLength) {
-    const total = labels.join(".").length;
+    const total = ArrayPrototypeJoin(labels, ".").length;
     if (total > 253 || total === 0) {
       result.error = true;
     }
@@ -404,7 +437,7 @@ export function toASCII(
   if (result.error) {
     return null;
   }
-  return labels.join(".");
+  return ArrayPrototypeJoin(labels, ".");
 }
 
 type ConcreteOptions = Record<keyof Options, boolean>;

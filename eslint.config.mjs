@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax */
 /* eslint-disable no-restricted-globals */
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck
@@ -17,6 +18,19 @@ export default [
     rules: {
       "no-restricted-globals": ["error", ...blockedGlobals],
       "@typescript-eslint/no-unused-vars": "off",
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "CallExpression > .callee:not(Identifier):not(:has(Identifier[name=/^safe_|^Safe/], PrivateIdentifier)):not(Super)",
+          message: "Only call static functions.",
+        },
+        {
+          selector:
+            "SpreadElement:not(ObjectExpression > SpreadElement):not(:has(Identifier[name=/^Safe|safe_/]))",
+          message: "Only spread safe iterators.",
+        },
+      ],
     },
   },
 ];

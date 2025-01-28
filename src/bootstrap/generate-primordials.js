@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax */
 /* eslint-disable no-restricted-globals */
 /* global console */
 
@@ -251,6 +252,7 @@ type _UncurryThis<
   : Signatures;
 // eslint-disable-next-line no-restricted-globals
 const { apply, bind, call } = Function.prototype;
+// eslint-disable-next-line no-restricted-syntax
 const uncurryThis = bind.bind(call) as <
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   T extends (this: any, ...args: any[]) => unknown
@@ -261,7 +263,7 @@ const uncurryThis = bind.bind(call) as <
   ? (...args: _UncurryThis<T>[number][2]) => _UncurryThis<T>[number][3]
   : // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (...args: any[]) => any;
-
+// eslint-disable-next-line no-restricted-syntax
 const applyBind = bind.bind(apply) as <
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   T extends (this: any, ...args: any[]) => unknown
@@ -284,6 +286,7 @@ declare global {
 }
 
 /* eslint-disable no-restricted-globals */
+/* eslint-disable no-restricted-syntax */
 type $Iterator<T, TReturn = unknown, TNext = undefined> = Iterator<T, TReturn, TNext>
 type $Array<T> = Array<T>;
 type $Uint8Array = Uint8Array;

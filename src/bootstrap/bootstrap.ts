@@ -4,7 +4,6 @@ import {
   FunctionPrototypeCall,
   JSONStringify,
   RegExpPrototypeTest,
-  StringPrototypeSlice,
   StringPrototypeStartsWith,
   type ArrayBuffer,
 } from "./primordials.js";
@@ -16,11 +15,9 @@ import {
   fileURLToPath,
   pathToFileURL,
 } from "@easrng/import-meta-resolve/lib/node-url.js";
-import path from "@easrng/import-meta-resolve/lib/node-path.js";
-const { resolve: pathResolve } = path;
 export type Internals = {
   /** Writes string to fd as utf-8 */
-  js_write_str(fd: number, str: string): void;
+  write_str(fd: number, str: string): void;
   /** Executes microtasks */
   execute_pending_job(): boolean;
   /** Module loader */
@@ -53,7 +50,7 @@ export default function bootstrap(internals: Internals) {
     getcwd,
     readtextfile,
     getmode,
-    js_write_str,
+    write_str,
   } = internals;
 
   function importMetaResolve(
@@ -75,24 +72,7 @@ export default function bootstrap(internals: Internals) {
   internals.loader_load = function loader_load(name) {
     const cwd = getcwd();
     if (!cwd) throw new Error("failed to get cwd");
-    let json = false;
-    if (StringPrototypeStartsWith(name, "json:")) {
-      name = StringPrototypeSlice(name, 5);
-      json = true;
-    }
-    let hax;
-    try {
-      hax = StringPrototypeStartsWith(name, "emjs:")
-        ? pathResolve(
-            cwd,
-            "build/lib",
-            StringPrototypeSlice(name, 5) + (json ? ".json" : ".js")
-          )
-        : fileURLToPath(name);
-    } catch (e) {
-      throw new Error(`failed to read module ${JSONStringify(name)}: ${e}`);
-    }
-    const text = readtextfile(hax);
+    const text = readtextfile(fileURLToPath(name));
     if (!text)
       throw new Error("module at " + JSONStringify(name) + " not found");
     return text;
@@ -179,7 +159,7 @@ export default function bootstrap(internals: Internals) {
     return FunctionPrototypeCall(importMetaResolve, baseURL, specifier);
   };
   PromisePrototypeCatch(import(["emjs:internal/init"][0]!), (e) => {
-    js_write_str(
+    write_str(
       2,
       e instanceof Error ? e.message + "\n" + e.stack + "\n" : e + "\n"
     );

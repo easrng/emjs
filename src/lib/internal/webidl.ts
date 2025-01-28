@@ -709,33 +709,37 @@ export interface Converters {
     opts?: StringConverterOpts
   ) => string | Record<string, string> | string[][];
 }
-const converters: Converters = ObjectCreate(null);
+const safe_converters: Converters = ObjectCreate(null);
 
-converters.any = (V) => {
+safe_converters.any = (V) => {
   return V;
 };
 
-converters.boolean = function (val) {
+safe_converters.boolean = function (val) {
   return !!val;
 };
 
-converters.byte = createIntegerConversion(8, { unsigned: false });
-converters.octet = createIntegerConversion(8, { unsigned: true });
+safe_converters.byte = createIntegerConversion(8, { unsigned: false });
+safe_converters.octet = createIntegerConversion(8, { unsigned: true });
 
-converters.short = createIntegerConversion(16, { unsigned: false });
-converters["unsigned short"] = createIntegerConversion(16, {
+safe_converters.short = createIntegerConversion(16, { unsigned: false });
+safe_converters["unsigned short"] = createIntegerConversion(16, {
   unsigned: true,
 });
 
-converters.long = createIntegerConversion(32, { unsigned: false });
-converters["unsigned long"] = createIntegerConversion(32, { unsigned: true });
-
-converters["long long"] = createLongLongConversion(64, { unsigned: false });
-converters["unsigned long long"] = createLongLongConversion(64, {
+safe_converters.long = createIntegerConversion(32, { unsigned: false });
+safe_converters["unsigned long"] = createIntegerConversion(32, {
   unsigned: true,
 });
 
-converters.float = (V, prefix, context, _opts) => {
+safe_converters["long long"] = createLongLongConversion(64, {
+  unsigned: false,
+});
+safe_converters["unsigned long long"] = createLongLongConversion(64, {
+  unsigned: true,
+});
+
+safe_converters.float = (V, prefix, context, _opts) => {
   const x = toNumber(V);
 
   if (!NumberIsFinite(x)) {
@@ -765,7 +769,7 @@ converters.float = (V, prefix, context, _opts) => {
   return y;
 };
 
-converters["unrestricted float"] = (V, _prefix, _context, _opts) => {
+safe_converters["unrestricted float"] = (V, _prefix, _context, _opts) => {
   const x = toNumber(V);
 
   if (NumberIsNaN(x)) {
@@ -779,7 +783,7 @@ converters["unrestricted float"] = (V, _prefix, _context, _opts) => {
   return MathFround(x);
 };
 
-converters.double = (V, prefix, context, _opts) => {
+safe_converters.double = (V, prefix, context, _opts) => {
   const x = toNumber(V);
 
   if (!NumberIsFinite(x)) {
@@ -794,13 +798,13 @@ converters.double = (V, prefix, context, _opts) => {
   return x;
 };
 
-converters["unrestricted double"] = (V, _prefix, _context, _opts) => {
+safe_converters["unrestricted double"] = (V, _prefix, _context, _opts) => {
   const x = toNumber(V);
 
   return x;
 };
 
-converters.DOMString = function (
+safe_converters.DOMString = function (
   V,
   prefix,
   context,
@@ -832,8 +836,8 @@ function isByteString(input: string) {
   return true;
 }
 
-converters.ByteString = (V, prefix, context, opts) => {
-  const x = converters.DOMString(V, prefix, context, opts);
+safe_converters.ByteString = (V, prefix, context, opts) => {
+  const x = safe_converters.DOMString(V, prefix, context, opts);
   if (!isByteString(x)) {
     throw makeException(
       TypeError,
@@ -845,12 +849,12 @@ converters.ByteString = (V, prefix, context, opts) => {
   return x;
 };
 
-converters.USVString = (V, prefix, context, opts) => {
-  const S = converters.DOMString(V, prefix, context, opts);
+safe_converters.USVString = (V, prefix, context, opts) => {
+  const S = safe_converters.DOMString(V, prefix, context, opts);
   return StringPrototypeToWellFormed(S);
 };
 
-converters.object = (V, prefix, context, _opts) => {
+safe_converters.object = (V, prefix, context, _opts) => {
   if (type(V) !== "Object") {
     throw makeException(TypeError, "is not an object", prefix, context);
   }
@@ -874,7 +878,7 @@ function convertCallbackFunction(
   return V as (...args: any) => any;
 }
 
-converters.ArrayBuffer = (
+safe_converters.ArrayBuffer = (
   V,
   prefix = undefined,
   context = undefined,
@@ -895,7 +899,7 @@ converters.ArrayBuffer = (
   return V;
 };
 
-converters.DataView = (
+safe_converters.DataView = (
   V,
   prefix = undefined,
   context = undefined,
@@ -945,7 +949,7 @@ ArrayPrototypeForEach(
     const article = RegExpPrototypeTest(new SafeRegExp(/^[AEIOU]/), name)
       ? "an"
       : "a";
-    converters[name] = (
+    safe_converters[name] = (
       V,
       prefix = undefined,
       context = undefined,
@@ -978,7 +982,7 @@ ArrayPrototypeForEach(
 
 // Common definitions
 
-converters.ArrayBufferView = (
+safe_converters.ArrayBufferView = (
   V,
   prefix = undefined,
   context = undefined,
@@ -1010,7 +1014,7 @@ converters.ArrayBufferView = (
   return V;
 };
 
-converters.BufferSource = (
+safe_converters.BufferSource = (
   V,
   prefix = undefined,
   context = undefined,
@@ -1059,36 +1063,42 @@ converters.BufferSource = (
   return V;
 };
 
-converters.DOMTimeStamp = converters["unsigned long long"];
-converters.DOMHighResTimeStamp = converters["double"];
+safe_converters.DOMTimeStamp = safe_converters["unsigned long long"];
+safe_converters.DOMHighResTimeStamp = safe_converters["double"];
 
-converters.Function = convertCallbackFunction;
+safe_converters.Function = convertCallbackFunction;
 
-converters.VoidFunction = convertCallbackFunction;
+safe_converters.VoidFunction = convertCallbackFunction;
 
-converters["UVString?"] = createNullableConverter(converters.USVString);
-converters["sequence<double>"] = createSequenceConverter(converters.double);
-converters["sequence<object>"] = createSequenceConverter(converters.object);
-converters["Promise<undefined>"] = createPromiseConverter(() => undefined);
+safe_converters["UVString?"] = createNullableConverter(
+  safe_converters.USVString
+);
+safe_converters["sequence<double>"] = createSequenceConverter(
+  safe_converters.double
+);
+safe_converters["sequence<object>"] = createSequenceConverter(
+  safe_converters.object
+);
+safe_converters["Promise<undefined>"] = createPromiseConverter(() => undefined);
 
-converters["sequence<ByteString>"] = createSequenceConverter(
-  converters.ByteString
+safe_converters["sequence<ByteString>"] = createSequenceConverter(
+  safe_converters.ByteString
 );
-converters["sequence<sequence<ByteString>>"] = createSequenceConverter(
-  converters["sequence<ByteString>"]
+safe_converters["sequence<sequence<ByteString>>"] = createSequenceConverter(
+  safe_converters["sequence<ByteString>"]
 );
-converters["record<ByteString, ByteString>"] = createRecordConverter(
-  converters.ByteString,
-  converters.ByteString
+safe_converters["record<ByteString, ByteString>"] = createRecordConverter(
+  safe_converters.ByteString,
+  safe_converters.ByteString
 );
 
-converters["sequence<USVString>"] = createSequenceConverter(
-  converters.USVString
+safe_converters["sequence<USVString>"] = createSequenceConverter(
+  safe_converters.USVString
 );
-converters["sequence<sequence<USVString>>"] = createSequenceConverter(
-  converters["sequence<USVString>"]
+safe_converters["sequence<sequence<USVString>>"] = createSequenceConverter(
+  safe_converters["sequence<USVString>"]
 );
-converters[
+safe_converters[
   "sequence<sequence<USVString>> or record<USVString, USVString> or USVString"
 ] = (
   V: any,
@@ -1099,29 +1109,29 @@ converters[
   // Union for (sequence<sequence<USVString>> or record<USVString, USVString> or USVString)
   if (type(V) === "Object" && V !== null) {
     if (V[primordials.SymbolIterator] !== undefined) {
-      return converters["sequence<sequence<USVString>>"]!(
+      return safe_converters["sequence<sequence<USVString>>"]!(
         V,
         prefix,
         context,
         opts
       );
     }
-    return converters["record<USVString, USVString>"]!(
+    return safe_converters["record<USVString, USVString>"]!(
       V,
       prefix,
       context,
       opts
     );
   }
-  return converters.USVString(V, prefix, context, opts);
+  return safe_converters.USVString(V, prefix, context, opts);
 };
-converters["record<USVString, USVString>"] = createRecordConverter(
-  converters.USVString,
-  converters.USVString
+safe_converters["record<USVString, USVString>"] = createRecordConverter(
+  safe_converters.USVString,
+  safe_converters.USVString
 );
 
-converters["sequence<DOMString>"] = createSequenceConverter(
-  converters.DOMString
+safe_converters["sequence<DOMString>"] = createSequenceConverter(
+  safe_converters.DOMString
 );
 
 function requiredArguments(
@@ -1139,6 +1149,7 @@ function requiredArguments(
 
 export type Dictionary = DictionaryMember[];
 export interface DictionaryMember {
+  __proto__: null;
   key: string;
   converter: (v: any, prefix?: string, context?: string, opts?: any) => any;
   defaultValue?: any;
@@ -1192,9 +1203,11 @@ function createDictionaryConverter<T extends Dictionary[]>(
 
   const defaultValues = ObjectCreate(null);
   for (let i = 0; i < allMembers.length; ++i) {
-    const member = allMembers[i]!;
-    if (ReflectHas(member, "defaultValue")) {
-      const idlMemberValue = member.defaultValue;
+    const safe_member = allMembers[i]!;
+    // safe to call props because proto is null
+    void (safe_member.__proto__ satisfies null);
+    if (ReflectHas(safe_member, "defaultValue")) {
+      const idlMemberValue = safe_member.defaultValue;
       const imvType = typeof idlMemberValue;
       // Copy by value types can be directly assigned, copy by reference types
       // need to be re-created for each allocation.
@@ -1205,12 +1218,15 @@ function createDictionaryConverter<T extends Dictionary[]>(
         imvType === "bigint" ||
         imvType === "undefined"
       ) {
-        defaultValues[member.key] = member.converter(idlMemberValue);
+        defaultValues[safe_member.key] = safe_member.converter(idlMemberValue);
       } else {
-        ObjectDefineProperty(defaultValues, member.key, {
+        ObjectDefineProperty(defaultValues, safe_member.key, {
           __proto__: null,
           get() {
-            return member.converter(idlMemberValue, member.defaultValue);
+            return safe_member.converter(
+              idlMemberValue,
+              safe_member.defaultValue
+            );
           },
           enumerable: true,
         });
@@ -1289,7 +1305,7 @@ function createEnumConverter(
   name: string,
   values: string[]
 ): (v: any, prefix?: string, context?: string, opts?: any) => string {
-  const E = new SafeSet(values);
+  const safe_enumValues = new SafeSet(values);
 
   return function (
     V,
@@ -1299,7 +1315,7 @@ function createEnumConverter(
   ) {
     const S = String(V);
 
-    if (!E.has(S)) {
+    if (!safe_enumValues.has(S)) {
       throw new TypeError(
         `${
           prefix ? prefix + ": " : ""
@@ -1349,6 +1365,7 @@ function createSequenceConverter<T>(
         context
       );
     }
+    // eslint-disable-next-line no-restricted-syntax
     const iter = V?.[primordials.SymbolIterator]?.();
     if (iter === undefined) {
       throw makeException(
@@ -1360,6 +1377,7 @@ function createSequenceConverter<T>(
     }
     const array: T[] = [];
     while (true) {
+      // eslint-disable-next-line no-restricted-syntax
       const res = iter?.next?.();
       if (res === undefined) {
         throw makeException(
@@ -1448,9 +1466,8 @@ function createAsyncIterableConverter<V, T>(
 
         if (!isAsync) {
           asyncIterator = {
-            // deno-lint-ignore require-await
             async next() {
-              // deno-lint-ignore prefer-primordials
+              // eslint-disable-next-line no-restricted-syntax
               return iter.next();
             },
           };
@@ -1458,7 +1475,7 @@ function createAsyncIterableConverter<V, T>(
 
         return {
           async next(_?: any) {
-            // deno-lint-ignore prefer-primordials
+            // eslint-disable-next-line no-restricted-syntax
             const iterResult = await asyncIterator.next();
             if (type(iterResult) !== "Object") {
               throw TypeError(
@@ -1486,7 +1503,7 @@ function createAsyncIterableConverter<V, T>(
               return { value: undefined, done: true };
             }
 
-            // deno-lint-ignore prefer-primordials
+            // eslint-disable-next-line no-restricted-syntax
             const returnPromiseResult = await asyncIterator.return(reason);
             if (type(returnPromiseResult) !== "Object") {
               throw TypeError(
@@ -1648,7 +1665,7 @@ function mixinPairIterable<
 >(
   name: string,
   prototype: T,
-  dataMap: primordials.WeakMap<
+  safe_dataMap: primordialUtils.SafeWeakMap<
     InstanceType<T>,
     (Record<KK, any> & Record<VK, any>)[]
   >,
@@ -1670,7 +1687,7 @@ function mixinPairIterable<
         );
       }
       const { target, kind, index } = internal;
-      const values = dataMap.get(target)!;
+      const values = safe_dataMap.get(target)!;
       const len = values.length;
       if (index >= len) {
         return { value: undefined, done: true };
@@ -1743,7 +1760,7 @@ function mixinPairIterable<
         assertBranded(this, prototype.prototype);
         const prefix = `Failed to execute 'forEach' on '${name}'`;
         requiredArguments(arguments.length, 1, prefix);
-        let parsedIdlCallback = converters["Function"](
+        let parsedIdlCallback = safe_converters["Function"](
           idlCallback,
           prefix,
           "Argument 1"
@@ -1752,7 +1769,7 @@ function mixinPairIterable<
           parsedIdlCallback,
           thisArg ?? globalThis
         );
-        const pairs = dataMap.get(this as any)!;
+        const pairs = safe_dataMap.get(this as any)!;
         for (let i = 0; i < pairs.length; i++) {
           const entry = pairs[i]!;
           parsedIdlCallback(entry[valueKey], entry[keyKey], this);
@@ -1828,6 +1845,7 @@ function setlike(obj: any, objPrototype: any, readonly: boolean) {
       writable: true,
       value() {
         assertBranded(this, objPrototype);
+        // eslint-disable-next-line no-restricted-syntax
         return obj[setlikeInner][primordials.SymbolIterator]();
       },
     },
@@ -1929,7 +1947,7 @@ function setlike(obj: any, objPrototype: any, readonly: boolean) {
 export {
   assertBranded,
   configureInterface,
-  converters,
+  safe_converters as converters,
   createAsyncIterableConverter,
   brandInstance,
   createDictionaryConverter,
